@@ -1,0 +1,186 @@
+<!DOCTYPE html><html><head><title>linux kernel 中 va_arg 等宏的解析</title><meta charset='utf-8'><link href='https://dn-maxiang.qbox.me/res-min/themes/marxico.css' rel='stylesheet'><style>
+
+.note-content  {font-family: "Helvetica Neue", Arial, "Hiragino Sans GB", STHeiti, "Microsoft YaHei", "WenQuanYi Micro Hei", SimSun, Song, sans-serif;}
+</style></head><body><div id='preview-contents' class='note-content'>
+                        
+                    
+
+
+
+<h2 id="linux-kernel-中-vaarg-等宏的解析">linux kernel 中 va_arg 等宏的解析</h2>
+
+<p><p class="note-tags "><code class="notebook">linux_kernel</code> </p></p>
+
+
+
+<h4 id="相关主题">相关主题：</h4>
+
+<ol><li rel="1">可变参数的实现原理</li>
+<li rel="2">可变参数的使用</li>
+</ol>
+
+
+
+<h4 id="copy-from-linux-012">copy from linux-0.12</h4>
+
+
+
+<pre class="prettyprint hljs-light"><code class="language-c++ hljs cpp"><br><span class="hljs-comment">/* Amount of space required in an argument list for an arg of type TYPE.<br>   TYPE may alternatively be an expression whose type is used.  */</span><br><br></code></pre>
+
+
+
+<h4 id="copy-from-linux-2xx">copy from linux-2.xx</h4>
+
+
+
+<pre class="prettyprint hljs-light"><code class="language-c++ hljs cpp"><span class="hljs-keyword">typedef</span> <span class="hljs-keyword">int</span> s32;<br><span class="hljs-keyword">typedef</span> s32 acpi_native_int;<br><br><span class="hljs-preprocessor">#<span class="hljs-keyword">ifndef</span> va_arg</span><br><br><span class="hljs-preprocessor">#<span class="hljs-keyword">ifndef</span> _VALIST</span><br><span class="hljs-preprocessor">#<span class="hljs-keyword">define</span> _VALIST</span><br><span class="hljs-keyword">typedef</span> <span class="hljs-keyword">char</span> *va_list;<br><span class="hljs-preprocessor">#<span class="hljs-keyword">endif</span>              <span class="hljs-comment">/* _VALIST */</span></span><br><br><span class="hljs-comment">/*<br> * Storage alignment properties<br> */</span><br><span class="hljs-preprocessor">#<span class="hljs-keyword">define</span>  _AUPBND                (sizeof (acpi_native_int) - <span class="hljs-number">1</span>)</span><br><span class="hljs-preprocessor">#<span class="hljs-keyword">define</span>  _ADNBND                (sizeof (acpi_native_int) - <span class="hljs-number">1</span>)</span><br><br><span class="hljs-comment">/*<br> * Variable argument list macro definitions<br> */</span><br><span class="hljs-preprocessor">#<span class="hljs-keyword">define</span> _bnd(X, bnd)            (((sizeof (X)) + (bnd)) &amp; (~(bnd)))</span><br><span class="hljs-preprocessor">#<span class="hljs-keyword">define</span> va_start(ap, A)         (void) ((ap) = (((char *) &amp;(A)) + (_bnd (A,_AUPBND))))</span><br><span class="hljs-preprocessor">#<span class="hljs-keyword">define</span> va_arg(ap, T)           (*(T *)(((ap) += (_bnd (T, _AUPBND))) - (_bnd (T,_ADNBND))))</span><br><span class="hljs-preprocessor">#<span class="hljs-keyword">define</span> va_end(ap)              (void) <span class="hljs-number">0</span></span><br><br><span class="hljs-preprocessor">#<span class="hljs-keyword">endif</span>              <span class="hljs-comment">/* va_arg */</span></span><br></code></pre>
+
+
+
+<h4 id="问题">问题</h4>
+
+<ol start="1"><li rel="1">为什么要分两个宏<code>_AUPBND</code>、<code>_ADNBND</code>？</li>
+</ol>
+
+
+
+<h4 id="valist">va_list</h4>
+
+
+
+<pre class="prettyprint hljs-light"><code class="language-c++ hljs cpp"><span class="hljs-keyword">typedef</span> <span class="hljs-keyword">char</span> *va_list;<br></code></pre>
+
+
+
+<h4 id="堆栈字节对齐-linux-2xx">堆栈字节对齐  <code>(linux-2.xx)</code></h4>
+
+
+
+<pre class="prettyprint hljs-light"><code class="language-c++ hljs cpp"><span class="hljs-keyword">typedef</span> <span class="hljs-keyword">int</span> s32;<br><span class="hljs-keyword">typedef</span> s32 acpi_native_int;<br><br><span class="hljs-comment">/*<br> * Storage alignment properties<br> */</span><br><span class="hljs-preprocessor">#<span class="hljs-keyword">define</span>  _AUPBND                (sizeof (acpi_native_int) - <span class="hljs-number">1</span>)</span><br><span class="hljs-preprocessor">#<span class="hljs-keyword">define</span>  _ADNBND                (sizeof (acpi_native_int) - <span class="hljs-number">1</span>)</span><br></code></pre>
+
+<p>上面的宏展开为：</p>
+
+
+
+<pre class="prettyprint hljs-light"><code class="language-c++ hljs cpp"><span class="hljs-preprocessor">#<span class="hljs-keyword">define</span>  _AUPBND                (sizeof (int) - <span class="hljs-number">1</span>)</span><br><span class="hljs-preprocessor">#<span class="hljs-keyword">define</span>  _ADNBND                (sizeof (int) - <span class="hljs-number">1</span>)</span><br></code></pre>
+
+<p>在32位机下，上面的宏即：</p>
+
+
+
+<pre class="prettyprint hljs-light"><code class="language-c++ hljs cpp"><span class="hljs-preprocessor">#<span class="hljs-keyword">define</span>  _AUPBND                <span class="hljs-number">3</span></span><br><span class="hljs-preprocessor">#<span class="hljs-keyword">define</span>  _ADNBND                <span class="hljs-number">3</span></span><br></code></pre>
+
+<p>即：</p>
+
+
+
+<pre class="prettyprint hljs-light"><code class="language-c++ hljs cpp"><span class="hljs-preprocessor">#<span class="hljs-keyword">define</span>  _AUPBND                <span class="hljs-number">0x00000003</span></span><br><span class="hljs-preprocessor">#<span class="hljs-keyword">define</span>  _ADNBND                <span class="hljs-number">0x00000003</span></span><br></code></pre>
+
+
+
+<h4 id="类型为x的参数在栈中占据的字节数">类型为<code>X</code>的参数在栈中占据的字节数</h4>
+
+
+
+<pre class="prettyprint hljs-light"><code class="language-c++ hljs cpp"><span class="hljs-preprocessor">#<span class="hljs-keyword">define</span> _bnd(X, bnd)            (((sizeof (X)) + (bnd)) &amp; (~(bnd)))</span><br></code></pre>
+
+<p>而下面的宏：</p>
+
+
+
+<pre class="prettyprint hljs-light"><code class="language-c++ hljs cpp">_bnd (T, _AUPBND)<br></code></pre>
+
+<p>展开为：</p>
+
+
+
+<pre class="prettyprint hljs-light"><code class="language-c++ hljs cpp">(((<span class="hljs-keyword">sizeof</span> (T)) + (_AUPBND)) &amp; (~(_AUPBND)))<br></code></pre>
+
+<p><code>(_AUPBND)</code>的值为：<code>0x00000003</code>，因此： <br>
+ <code>(~(_AUPBND))</code>的值为：<code>0xfffffffc</code>，即：<code>1111 ... 1100</code></p>
+
+
+
+<pre class="prettyprint hljs-light"><code class="language-c++ hljs cpp">(((<span class="hljs-keyword">sizeof</span> (T)) + (_AUPBND)) &amp; (~(_AUPBND)))<br></code></pre>
+
+<p>在32位机下展开为：</p>
+
+
+
+<pre class="prettyprint hljs-light"><code class="language-c++ hljs cpp">( ((<span class="hljs-keyword">sizeof</span> (T)) + <span class="hljs-number">3</span> ) &amp; <span class="hljs-number">0xfffffffc</span> )<br></code></pre>
+
+<p>其作用为：倘若<code>sizeof(T)</code>不是<code>4</code>的整数倍，取商去余再乘以<code>4</code>，最后得到<code>4</code>的整数倍。 <br>
+比如：</p>
+
+
+
+<pre class="prettyprint hljs-light"><code class="language-c++ hljs cpp">( ((<span class="hljs-keyword">sizeof</span> (T))       + <span class="hljs-number">3</span> )      &amp; <span class="hljs-number">0xfffffffc</span> ) =&gt; 二进制<br><br>    <span class="hljs-keyword">sizeof</span> (T) = <span class="hljs-number">1</span>, <span class="hljs-number">1</span> + <span class="hljs-number">3</span> = <span class="hljs-number">4</span>, <span class="hljs-number">4</span> &amp; <span class="hljs-number">0xfffffffc</span>   =&gt; (<span class="hljs-number">0</span>b)<span class="hljs-number">100</span>, 结果为：<span class="hljs-number">4</span><br>    <span class="hljs-keyword">sizeof</span> (T) = <span class="hljs-number">3</span>, <span class="hljs-number">3</span> + <span class="hljs-number">3</span> = <span class="hljs-number">6</span>, <span class="hljs-number">6</span> &amp; <span class="hljs-number">0xfffffffc</span>   =&gt; (<span class="hljs-number">0</span>b)<span class="hljs-number">100</span>, 结果为：<span class="hljs-number">4</span><br><br>    <span class="hljs-keyword">sizeof</span> (T) = <span class="hljs-number">5</span>, <span class="hljs-number">5</span> + <span class="hljs-number">3</span> = <span class="hljs-number">8</span>, <span class="hljs-number">8</span> &amp; <span class="hljs-number">0xfffffffc</span>   =&gt; (<span class="hljs-number">0</span>b)<span class="hljs-number">1000</span>, 结果为：<span class="hljs-number">8</span><br>    ...<br></code></pre>
+
+<p>即：</p>
+
+
+
+<pre class="prettyprint hljs-light"><code class="language-c++ hljs cpp">_bnd(<span class="hljs-keyword">char</span>, _AUPBND) =&gt; <span class="hljs-number">4</span><br>_bnd(size<span class="hljs-number">.5</span>, _AUPBND) =&gt; <span class="hljs-number">8</span><br></code></pre>
+
+<p>结论：<code>_bnd(X, bnd)</code>宏计算类型为<code>X</code>的参数在栈中占据的字节数（32位机下以<code>4</code>字节对齐）</p>
+
+
+
+<h4 id="vastart">va_start</h4>
+
+<pre class="prettyprint hljs-light"><code class="hljs autohotkey">初始化参数指针<span class="hljs-escape">`a</span>p<span class="hljs-escape">`，</span>亦即计算第一个可变参数的地址<br></code></pre>
+
+
+
+<pre class="prettyprint hljs-light"><code class="language-c++ hljs cpp"><span class="hljs-comment">/* 输入参数：<br> *   @A: 第一个参数（必须有的、固定的、由此推导出后面可变参数的地址）<br> * 输出参数：<br> *   @ap: 第一个可变参数的地址<br> */</span><br><span class="hljs-preprocessor">#<span class="hljs-keyword">define</span> va_start(ap, A)         (void) ((ap) = (((char *) &amp;(A)) + (_bnd (A,_AUPBND))))</span><br></code></pre>
+
+<ul><li><code>A</code>：必须是一个固定参数</li>
+<li><p><code>((char *) &amp;(A))</code>：取<code>A</code>的地址，并强制类型转换为<code>char *</code></p>
+
+<blockquote>
+  <p><code>char</code>类型占一个字节，因此<code>char *</code>指向一个字节的地址，这种类型的指针作加减操作时是以<strong>一个字节</strong>为单位的</p>
+  
+  <p>因此<code>((char *) &amp;(A))</code>表示<code>A</code>变量地址的第一个字节（32位机中地址占<code>4</code>字节）</p>
+</blockquote></li>
+<li><p><code>(_bnd (A,_AUPBND))</code>：计算固定参数<code>A</code>在栈中所占的字节数</p></li>
+</ul>
+
+<p>因此：<code>va_start(ap, A)</code>表示：参数<code>A</code>地址的第一个字节 + <code>A</code>所占的字节数，即：指向下一个参数的地址的第一个字节处，亦即：</p>
+
+<blockquote>
+  <p>将函数的固定参数<code>A</code>的下一个参数（第一个可变参数）的地址赋给<code>ap</code></p>
+</blockquote>
+
+
+
+<h4 id="vaarg">va_arg</h4>
+
+
+
+<pre class="prettyprint hljs-light"><code class="language-c++ hljs cpp"><span class="hljs-comment">/* 输入参数：<br> *   @ap:  当前可变参数的地址<br> *   @T:   当前可变参数的类型<br> * 输出参数：<br> *   @ap: 下一个可变参数的地址<br> *<br> * 其作用有两个：<br> *   1.解引用得到当前参数的值<br> *   2.指向下一个参数<br> */</span><br><span class="hljs-preprocessor">#<span class="hljs-keyword">define</span> va_arg(ap, T)           (*(T *)(((ap) += (_bnd (T, _AUPBND))) - (_bnd (T,_ADNBND))))</span><br></code></pre>
+
+<p></p><ul><li><code>(_bnd (T, _AUPBND))</code>：计算类型为当前可变参数<code>T</code>在栈中占据的字节数</li>
+<li><p><code>((ap) += (_bnd (T, _AUPBND)))</code>：<code>((ap) = (ap) + (_bnd (T, _AUPBND)))</code>， <br>
+赋值运算符<code>=</code>右边的<code>(ap)</code>为当前可变参数的地址的第一个字节，整个表达式表示：</p></li></ul><p></p>
+
+<blockquote>
+  <p>当前可变参数地址 + 当前参数所占空间字节数 赋值给<code>ap</code>，即： <br>
+  <code>ap</code>指向下一个可变参数的地址的第一个字节处 <br>
+  <strong>注意</strong>：此处<code>ap</code>的值已经发生了变化，不再指向当前参数，而是下一个参数</p>
+</blockquote>
+<li><p><code>va_arg(ap, T)</code>的整个表达式：先使<code>ap</code>指向下一个可变参数，然后再减去<code>(_bnd(T, _ADNBND)</code>，得到当前参数的地址，最后才是解引用得到当前参数的值</p></li>
+<li><strong>思考</strong>：为什么不先解引用得到当前参数的值，再让<code>ap</code>指向下一个参数呢？ <br>
+
+<blockquote>
+  因为<code>va_arg(ap, T)</code>是一个宏，最终目的是为了返回当前参数的值，上面这种方式会导致这个宏返回的是下一个参数的地址，而不是当前参数的值</blockquote></li>
+  
+  
+
+
+<h4 id="vaend">va_end</h4>
+
+
+
+<pre class="prettyprint hljs-light"><code class="language-c++ hljs cpp"><span class="hljs-preprocessor">#<span class="hljs-keyword">define</span> va_end(ap)              (void) <span class="hljs-number">0</span></span><br></code></pre>
+
+<p><code>ap</code>不再指向堆栈</p></div></body></html>
